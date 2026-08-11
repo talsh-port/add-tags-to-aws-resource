@@ -1,0 +1,44 @@
+name: Add tags to S3 bucket
+
+on:
+  workflow_dispatch:
+    inputs:
+      bucket_name:
+        required: true
+        type: string
+      tags:
+        required: true
+        type: string
+
+jobs:
+  tag-s3-bucket:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: Add tags to S3 bucket
+        env:
+          BUCKET_INPUT: ${{ inputs.bucket_name }}
+          TAGS_JSON: ${{ inputs.tags }}
+        run: |
+          # Extract bucket name from ARN if needed
+          # If input is an ARN (arn:aws:s3:::bucket-name), extract the name
+          # If input is already a bucket name, use it as-is
+          if [[ $BUCKET_INPUT == arn:aws:s3:::* ]]; then
+            BUCKET_NAME="${BUCKET_INPUT##arn:aws:s3:::}"
+          else
+            BUCKET_NAME="$BUCKET_INPUT"
+          fi
+
+          TAGGING=$(echo "${TAGS_JSON}" | jq -c '{TagSet: [to_entries[] | {Key: .key, Value: .value}]}')
+          aws s3api put-bucket-tagging \
+            --bucket "${BUCKET_NAME}" \
+            --tagging "${TAGGING}"
