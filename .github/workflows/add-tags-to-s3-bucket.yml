@@ -26,9 +26,18 @@ jobs:
 
       - name: Add tags to S3 bucket
         env:
-          BUCKET_NAME: ${{ inputs.bucket_name }}
+          BUCKET_INPUT: ${{ inputs.bucket_name }}
           TAGS_JSON: ${{ inputs.tags }}
         run: |
+          # Extract bucket name from ARN if needed
+          # If input is an ARN (arn:aws:s3:::bucket-name), extract the name
+          # If input is already a bucket name, use it as-is
+          if [[ $BUCKET_INPUT == arn:aws:s3:::* ]]; then
+            BUCKET_NAME="${BUCKET_INPUT##arn:aws:s3:::}"
+          else
+            BUCKET_NAME="$BUCKET_INPUT"
+          fi
+
           TAGGING=$(echo "${TAGS_JSON}" | jq -c '{TagSet: [to_entries[] | {Key: .key, Value: .value}]}')
           aws s3api put-bucket-tagging \
             --bucket "${BUCKET_NAME}" \
