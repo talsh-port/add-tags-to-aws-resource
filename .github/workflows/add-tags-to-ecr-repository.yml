@@ -1,0 +1,35 @@
+name: Add tags to ECR repository
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        type: string
+        required: true
+      tags:
+        type: string
+        required: true
+        description: 'Tags should be in key-value pairs like so: {"key": "value"}'
+
+jobs:
+  tag-ecr-repository:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install jq
+        run: sudo apt-get install jq
+
+      - name: Add tags to ECR repository
+        env:
+          TAGS_JSON: ${{ inputs.tags }}
+        run: |
+          TAGS=$(echo "${TAGS_JSON}" | jq -r '. | to_entries[] | "Key=\(.key),Value=\(.value)"' | tr '\n' ' ')
+          aws ecr tag-resource \
+            --resource-arn arn:aws:ecr:${{ secrets.AWS_REGION }}:${{ secrets.AWS_ACCOUNT_ID }}:repository/${{ inputs.repository }} \
+            --tags ${TAGS}
